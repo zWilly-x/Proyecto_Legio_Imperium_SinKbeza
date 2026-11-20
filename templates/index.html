@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<!--
+  index.html — VISTA (la "V" de MVC).
+  Todo lo visual está en este archivo: 1) estilos, 2) pantallas, 3) JavaScript.
+  La vista NO calcula reglas de la simulación: envía cada acción al controlador (app.py)
+  y dibuja el estado que este le devuelve.
+-->
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Legio Imperium</title>
+  <link rel="icon" href="data:,">
+
+  <!-- ============================ 1. ESTILOS ============================ -->
+  <style>
+    :root {
+      --panel: #11191ee8;
+      --texto: #f1e7d2;
+      --secundario: #c9c0ad;
+      --borde: #8b7350;
+      --rojo: #843f34;
+      --bronce: #dfbd7e;
+      --verde: #6f9a5a;
+    }
+    * { box-sizing: border-box; }
+    /* Tamaño base de letra: 15 px en pantallas chicas y hasta 18 px en monitores grandes.
+       Como casi todo se mide en rem/em, la interfaz completa crece en proporción. */
+    html { font-size: clamp(15px, 0.45vw + 9px, 18px); }
+    [hidden] { display: none !important; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--texto);
+      background: #10171c center / cover fixed no-repeat;
+      font: 1rem/1.5 Arial, sans-serif;
+    }
+    /* Velo oscuro sobre la imagen de fondo para que el texto se lea bien. */
+    body::before { content: ''; position: fixed; inset: 0; z-index: -1; background: #080e16a8; }
+    h1, h2, h3 { font-family: Georgia, serif; margin: 0 0 10px; }
+    h1 { font-size: 2.4rem; letter-spacing: 3px; }
+
+    .cabecera {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+      padding: 10px 3%; background: #0b1117e6; border-bottom: 1px solid var(--borde);
+    }
+    .cabecera .marca { font-family: Georgia, serif; font-size: 1.3rem; color: var(--bronce); }
+    main { padding: 1.2rem 3%; max-width: 1640px; margin: 0 auto; }
+
+    /* Anchos de contenido: los formularios cortos no se estiran por toda la pantalla. */
+    .angosta { max-width: 46rem; margin-inline: auto; }
+    .media { max-width: 68rem; margin-inline: auto; }
+
+    .panel { background: var(--panel); border: 1px solid var(--borde); border-radius: 8px; padding: 1.1rem 1.3rem; margin-bottom: 1rem; }
+    .columnas { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; align-items: start; }
+    .tres { display: grid; grid-template-columns: 1fr 17rem 1fr; gap: 1rem; align-items: start; }
+    @media (max-width: 900px) { .columnas, .tres { grid-template-columns: 1fr; } }
+
+    button {
+      cursor: pointer; border: 1px solid var(--bronce); border-radius: 6px; padding: .55em 1em; font-size: .95rem;
+      background: var(--rojo); color: var(--texto); font-weight: bold;
+    }
+    button.secundario { background: transparent; color: var(--bronce); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--bronce); outline-offset: 2px; }
+
+    label { display: block; margin: 8px 0 3px; color: var(--secundario); }
+    input, select {
+      width: 100%; padding: .5em .6em; border-radius: 5px; border: 1px solid var(--borde);
+      background: #0c1216; color: var(--texto); font-size: 1rem;
+    }
+    input[type=radio] { width: auto; }
+    .opciones label { display: inline-flex; gap: 6px; align-items: center; margin-right: 16px; color: var(--texto); }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 5px 6px; border-bottom: 1px solid #8b735055; text-align: right; }
+    th:first-child, td:first-child { text-align: left; }
+    th { color: var(--bronce); font-weight: normal; }
+    td input { width: 6.5rem; }
+
+    /* Menú principal: ocupa el alto de la pantalla y se ubica en la zona izquierda,
+       donde la imagen de fondo está despejada (el soldado queda a la derecha). */
+    #inicio { min-height: calc(100vh - 2.4rem); display: flex; align-items: center; padding-left: 4%; }
+    .portada { width: min(30rem, 100%); }
+    .portada h1 {
+      font-size: clamp(3rem, 5.2vw, 5.6rem); line-height: 1.02; letter-spacing: .08em;
+      color: var(--texto); text-shadow: 0 3px 18px #000c; margin-bottom: .3em;
+    }
+    .portada .lema { color: var(--bronce); font-size: 1.15rem; letter-spacing: .04em; margin: 0 0 1.6rem; }
+    .menu { display: grid; gap: .7rem; padding: 1.5rem; }
+    .menu button, .menu input { font-size: 1.05rem; padding: .7em 1em; }
+    .menu label { margin-top: 0; }
+    @media (max-width: 900px) { #inicio { justify-content: center; padding-left: 0; } .portada { text-align: center; } }
+
+    /* Lista de campañas guardadas y botón para elegir archivo */
+    #cargar .panel { margin-top: 6vh; }
+    #lista-campanias button { width: 100%; text-align: left; margin-bottom: .5rem; }
+    .elegir-archivo { display: inline-block; cursor: pointer; border: 1px solid var(--bronce); border-radius: 6px;
+      padding: .55em 1em; color: var(--bronce); font-weight: bold; font-size: .95rem; margin: 0; }
+    .elegir-archivo:focus-within { outline: 2px solid var(--bronce); outline-offset: 2px; }
+    .elegir-archivo input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+    /* Subtítulos dentro de un panel y bloque de la jerarquía */
+    .subtitulo { font-size: 1.05rem; color: var(--bronce); margin: 1.1rem 0 .4rem; padding-top: .8rem; border-top: 1px solid #8b735055; }
+    .jerarquia p { margin: .2rem 0; }
+    .acciones { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; margin-top: 1rem; }
+    .dato { color: var(--bronce); font-weight: bold; }
+    .nota { color: var(--secundario); font-size: .9rem; }
+    .error { color: #ff9c8a; }
+
+    /* Barra de salud de cada legión */
+    .barra { height: 18px; border: 1px solid var(--borde); border-radius: 9px; background: #2a1512; overflow: hidden; }
+    .barra div { height: 100%; background: linear-gradient(90deg, #8f2f22, var(--verde)); transition: width .5s; }
+
+    /* Aviso flotante (reemplaza a alert(), que bloquea la página) */
+    #aviso {
+      position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 10; max-width: 90%;
+      padding: 10px 18px; border-radius: 6px; border: 1px solid var(--bronce); background: #1b2328f5;
+    }
+    #aviso.error { border-color: #ff9c8a; }
+
+    #bitacora { max-height: 260px; overflow-y: auto; font-family: Consolas, monospace; font-size: .85rem; }
+    #bitacora div { padding: 2px 0; border-bottom: 1px solid #8b735022; }
+    #bitacora .baja { color: #ffb4a6; }
+    #bitacora .fin { color: var(--bronce); font-weight: bold; }
+
+    /* Pantalla de resultado */
+    .resultado-titulo { text-align: center; }
+    .resultado-titulo h1 { font-family: Georgia, serif; font-size: 2.4rem; color: var(--bronce); margin: 4px 0 10px; }
+    .panel.ganadora { border-color: var(--bronce); box-shadow: 0 0 0 2px var(--bronce); }
+
+    @media (prefers-reduced-motion: reduce) { .barra div { transition: none; } }
+  </style>
+</head>
+<body>
+
+  <!-- ============================ 2. PANTALLAS ============================ -->
+
+  <div id="aviso" hidden></div>
+
+  <header class="cabecera" id="cabecera" hidden>
+    <span class="marca">LEGIO IMPERIUM · <span id="nombre-campania"></span></span>
+    <span>
+      <button onclick="guardarCampania()">Guardar campaña</button>
+      <button class="secundario" onclick="abrirCargar()">Cargar campaña</button>
+      <button class="secundario" onclick="mostrar('inicio')">Menú</button>
+    </span>
+  </header>
+
+  <main>
+    <!-- Menú principal -->
+    <section id="inicio" class="pantalla">
+      <div class="portada">
+        <h1>LEGIO<br>IMPERIUM</h1>
+        <p class="lema">Recluta, ordena y conduce tus legiones a la batalla.</p>
+        <div class="menu panel">
+        <label for="nombre-nueva">Nombre de la campaña</label>
+        <input id="nombre-nueva" maxlength="40" placeholder="Campaña">
+        <button onclick="nuevaCampania()">Nueva campaña</button>
+        <button id="boton-continuar" class="secundario" onclick="dibujar()" hidden>Continuar campaña</button>
+        <button class="secundario" onclick="abrirCargar()">Cargar campaña</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Cargar desde la base de datos o desde un archivo -->
+    <section id="cargar" class="pantalla" hidden>
+      <div class="panel angosta">
+        <h2>Cargar campaña</h2>
+        <p class="nota">Campañas guardadas en la base de datos:</p>
+        <div id="lista-campanias"></div>
+        <p class="nota">O abrir una copia de respaldo guardada en un archivo (.json):</p>
+        <div class="acciones">
+          <label class="elegir-archivo">Elegir archivo…
+            <input type="file" id="archivo-campania" accept=".json,application/json" onchange="importarArchivo(this)">
+          </label>
+          <button class="secundario" onclick="volver()">Volver</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Crear legión (Legatus + presupuesto) -->
+    <section id="crear-legion" class="pantalla" hidden>
+      <div class="panel angosta">
+        <h2>Legión <span class="numero-legion"></span> de 2: crear y nombrar al Legatus</h2>
+        <label for="f-nombre">Nombre de la Legión</label>
+        <input id="f-nombre" maxlength="40">
+        <label for="f-legatus">Nombre del Legatus</label>
+        <input id="f-legatus" maxlength="40">
+        <label>Cónsul al que responde</label>
+        <div class="opciones">
+          <label><input type="radio" name="f-consul" value="0" checked> Cónsul I</label>
+          <label><input type="radio" name="f-consul" value="1"> Cónsul II</label>
+        </div>
+        <div class="columnas">
+          <div><label for="f-atk">%ATK del Legatus (−25 a 25)</label><input id="f-atk" type="number" step="any" value="0" oninput="mostrarCosto()"></div>
+          <div><label for="f-def">%DEF del Legatus (−25 a 25)</label><input id="f-def" type="number" step="any" value="0" oninput="mostrarCosto()"></div>
+        </div>
+        <p>%Costo de mantenimiento: <span class="dato" id="f-costo">0</span> %</p>
+        <label for="f-presupuesto">Presupuesto (denarios)</label>
+        <input id="f-presupuesto" type="number" min="0" step="1">
+        <p><button onclick="crearLegion()">Crear legión</button></p>
+      </div>
+    </section>
+
+    <!-- Contratar tropas -->
+    <section id="contratar" class="pantalla" hidden>
+      <div class="panel media">
+        <h2>Legión <span class="numero-legion"></span> de 2: contratar tropas para <span id="c-nombre"></span></h2>
+        <p>Presupuesto disponible: <span class="dato" id="c-presupuesto"></span> denarios</p>
+        <table>
+          <thead><tr><th>Unidad</th><th>HP</th><th>ATK</th><th>DEF</th><th>Costo</th><th style="text-align:left">Habilidad</th><th>Cantidad</th><th>Subtotal</th></tr></thead>
+          <tbody id="c-tabla"></tbody>
+        </table>
+        <p>Total: <span class="dato" id="c-total">0</span> · Saldo restante: <span class="dato" id="c-saldo"></span></p>
+        <p class="error" id="c-sin-fondos" hidden>
+          El presupuesto no alcanza para ninguna unidad que pueda atacar (Ingenieros y Esclavos no atacan).
+          Vuelva atrás y corrija el presupuesto.
+        </p>
+        <div class="acciones">
+          <button onclick="contratar()">Confirmar contratación</button>
+          <button class="secundario" onclick="corregirLegion()">Volver y corregir la legión</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Preparar el combate -->
+    <section id="preparar" class="pantalla" hidden>
+      <div class="panel angosta">
+        <h2>Preparar combate</h2>
+        <!-- Primero quién combate (jerarquía de mando), luego las opciones y el botón -->
+        <h3 class="subtitulo">Jerarquía de mando</h3>
+        <div id="p-jerarquia" class="jerarquia"></div>
+        <h3 class="subtitulo">Opciones del combate</h3>
+        <p class="nota">En el primer turno ambas legiones usan Triplex Acies.</p>
+        <label>¿Qué legión ataca primero?</label>
+        <div class="opciones" id="p-atacante"></div>
+        <label>Modo de avance</label>
+        <div class="opciones">
+          <label><input type="radio" name="p-modo" value="paso_a_paso" checked> Paso a paso</label>
+          <label><input type="radio" name="p-modo" value="automatico"> Automático</label>
+        </div>
+        <div class="acciones"><button onclick="iniciarCombate()">Comenzar combate</button></div>
+      </div>
+    </section>
+
+    <!-- Batalla, reagrupación y resultado -->
+    <section id="batalla" class="pantalla" hidden>
+      <div class="tres">
+        <div class="panel" id="legion-0"></div>
+
+        <div class="panel">
+          <h3 id="b-turno"></h3>
+          <p id="b-siguiente" class="nota"></p>
+          <button id="b-avanzar" onclick="avanzarEtapa()" style="width: 100%">Ejecutar etapa</button>
+          <label>Modo de avance</label>
+          <div class="opciones">
+            <label><input type="radio" name="b-modo" value="paso_a_paso" onchange="cambiarModo(this.value)"> Paso a paso</label>
+            <label><input type="radio" name="b-modo" value="automatico" onchange="cambiarModo(this.value)"> Automático</label>
+          </div>
+          <div id="b-ultima" class="nota"></div>
+        </div>
+
+        <div class="panel" id="legion-1"></div>
+      </div>
+
+      <!-- Reagrupación: solo aparece al terminar un turno -->
+      <div class="panel" id="reagrupacion" hidden>
+        <h2>Reagrupación</h2>
+        <p class="nota">El mantenimiento ya fue pagado. Ahora puede convertir esclavos (opcional) y elegir la estrategia del próximo turno.</p>
+        <p class="error" id="r-estancamiento" hidden></p>
+        <div class="columnas" id="r-legiones"></div>
+        <p><button onclick="confirmarReagrupacion()">Confirmar y continuar</button></p>
+      </div>
+
+      <!-- Cuando el combate terminó, permite volver a la pantalla de resultado -->
+      <div class="panel" id="final" hidden>
+        <button onclick="mostrar('resultado')">Ver resultado final</button>
+      </div>
+
+      <div class="panel">
+        <h3>Bitácora</h3>
+        <div id="bitacora"></div>
+      </div>
+    </section>
+
+    <!-- Resultado final: victoria de una legión o empate -->
+    <section id="resultado" class="pantalla" hidden>
+      <div class="panel resultado-titulo">
+        <p class="nota">Fin del combate</p>
+        <h1 id="r-titulo"></h1>
+        <p id="r-motivo"></p>
+        <p class="nota" id="r-resumen"></p>
+      </div>
+      <div class="columnas" id="r-balance"></div>
+      <div class="panel" style="text-align: center">
+        <button onclick="guardarCampania()">Guardar campaña</button>
+        <button class="secundario" onclick="mostrar('batalla')">Revisar combate y bitácora</button>
+        <button class="secundario" onclick="mostrar('inicio')">Volver al menú</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============================ 3. JAVASCRIPT ============================ -->
+  <script>
+    let estado = null;            // último estado recibido del servidor
+    let temporizadorAuto = null;  // reloj del modo automático
+    let pantallaAnterior = 'inicio';
+
+    const FONDOS = {
+      inicio: 'fondo-inicio.jpg', cargar: 'fondo-mando.jpg', 'crear-legion': 'fondo-mando.jpg',
+      contratar: 'fondo-cuartel.jpg', preparar: 'fondo-mando.jpg', batalla: 'fondo-combate.jpg',
+      resultado: 'fondo-combate.jpg'
+    };
+
+    // ---------- Comunicación con el controlador ----------
+
+    // Envía una acción al servidor. Devuelve el estado nuevo o null si hubo error.
+    async function llamar(ruta, datos) {
+      const opciones = datos === undefined
+        ? { method: 'GET' }
+        : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(datos) };
+      try {
+        const respuesta = await fetch(ruta, opciones);
+        const json = await respuesta.json();
+        if (!respuesta.ok) {
+          avisar(json.error || 'Error desconocido.', true);
+          return null;
+        }
+        if (json.mensaje) avisar(json.mensaje);
+        return json;
+      } catch (error) {
+        avisar('No hay conexión con el servidor. ¿Está corriendo python app.py?', true);
+        return null;
+      }
+    }
+
+    // Llama al servidor y, si salió bien, vuelve a dibujar la pantalla.
+    async function accion(ruta, datos) {
+      const nuevo = await llamar(ruta, datos);
+      if (nuevo) {
+        estado = nuevo;
+        dibujar();
+      }
+      return nuevo;
+    }
+
+    // ---------- Utilidades de pantalla ----------
+
+    function avisar(texto, esError = false) {
+      const aviso = document.getElementById('aviso');
+      aviso.textContent = texto;
+      aviso.className = esError ? 'error' : '';
+      aviso.hidden = false;
+      clearTimeout(avisar.reloj);
+      avisar.reloj = setTimeout(() => { aviso.hidden = true; }, esError ? 6000 : 3000);
+    }
+
+    // Evita que un nombre escrito por el usuario se interprete como HTML.
+    function esc(texto) {
+      const div = document.createElement('div');
+      div.textContent = String(texto);
+      return div.innerHTML;
+    }
+
+    function mostrar(nombre) {
+      detenerAutomatico();
+      const pantallaVisible = document.querySelector('.pantalla:not([hidden])');
+      if (!pantallaVisible || pantallaVisible.id !== nombre) window.scrollTo(0, 0);   // pantalla nueva: empezar arriba
+      document.querySelectorAll('.pantalla').forEach(p => { p.hidden = p.id !== nombre; });
+      document.body.style.backgroundImage = `url('/static/imagenes/${FONDOS[nombre]}')`;
+      document.getElementById('cabecera').hidden = nombre === 'inicio' || !estado || !estado.campania;
+      if (nombre === 'inicio') {
+        document.getElementById('boton-continuar').hidden = !(estado && estado.campania);
+      }
+      if (nombre !== 'cargar') pantallaAnterior = nombre;
+    }
+
+    function volver() { mostrar(pantallaAnterior); }
+
+    function valorRadio(nombre) {
+      const elegido = document.querySelector(`input[name="${nombre}"]:checked`);
+      return elegido ? elegido.value : null;
+    }
+
+    // ---------- Dibujar según la fase que indica el servidor ----------
+
+    function dibujar() {
+      if (!estado || estado.fase === 'sin_campania') { mostrar('inicio'); return; }
+      document.getElementById('nombre-campania').textContent = estado.campania.nombre;
+      document.querySelectorAll('.numero-legion').forEach(e => { e.textContent = estado.indice_legion + 1; });
+
+      switch (estado.fase) {
+        case 'crear_legion': prepararFormularioLegion(); mostrar('crear-legion'); break;
+        case 'contratar': dibujarContratacion(); mostrar('contratar'); break;
+        case 'preparar': dibujarPreparacion(); mostrar('preparar'); break;
+        case 'finalizado': dibujarBatalla(); dibujarResultado(); mostrar('resultado'); break;
+        default: dibujarBatalla(); mostrar('batalla'); programarAutomatico();
+      }
+    }
+
+    // ---------- Menú y campañas ----------
+
+    function nuevaCampania() {
+      accion('/api/nueva', { nombre: document.getElementById('nombre-nueva').value });
+    }
+
+    async function abrirCargar() {
+      mostrar('cargar');
+      const lista = document.getElementById('lista-campanias');
+      lista.innerHTML = '<p class="nota">Consultando…</p>';
+      const respuesta = await llamar('/api/campanias');
+      if (!respuesta) { lista.innerHTML = '<p class="error">No se pudo leer la base de datos.</p>'; return; }
+      if (respuesta.campanias.length === 0) { lista.innerHTML = '<p class="nota">No hay campañas guardadas.</p>'; return; }
+      lista.innerHTML = respuesta.campanias.map(c =>
+        `<button class="secundario" onclick="accion('/api/cargar/${c.id}', {})">N.º ${c.id} · ${esc(c.nombre)} · ${c.actualizada}</button>`
+      ).join('');
+    }
+
+    // Guardar: primero en la base de datos y luego ofrecer una copia en archivo.
+    async function guardarCampania() {
+      detenerAutomatico();
+      const nuevo = await llamar('/api/guardar', {});
+      if (nuevo) estado = nuevo;
+      await exportarArchivo();
+      dibujar();
+    }
+
+    // Abre el cuadro de diálogo "Guardar como" (Chrome/Edge) o descarga el archivo.
+    async function exportarArchivo() {
+      const respuesta = await fetch('/api/exportar');
+      if (!respuesta.ok) return;
+      const contenido = await respuesta.text();
+      const nombre = (estado.campania.nombre || 'campania').replace(/[^\w-]+/g, '_') + '.json';
+      if (window.showSaveFilePicker) {
+        try {
+          const archivo = await window.showSaveFilePicker({
+            suggestedName: nombre, types: [{ description: 'Campaña', accept: { 'application/json': ['.json'] } }]
+          });
+          const escritor = await archivo.createWritable();
+          await escritor.write(contenido);
+          await escritor.close();
+          avisar('Copia de respaldo guardada.');
+        } catch (error) { /* el usuario cerró el diálogo: no se exporta */ }
+      } else {
+        const enlace = document.createElement('a');
+        enlace.href = URL.createObjectURL(new Blob([contenido], { type: 'application/json' }));
+        enlace.download = nombre;
+        enlace.click();
+      }
+    }
+
+    // Lee el archivo elegido en el cuadro de diálogo y lo envía al servidor para validarlo.
+    function importarArchivo(entrada) {
+      const archivo = entrada.files[0];
+      if (!archivo) return;
+      const lector = new FileReader();
+      lector.onload = () => {
+        let datos;
+        try { datos = JSON.parse(lector.result); } catch (e) { datos = null; }
+        if (datos === null) { avisar('El archivo no es un JSON válido. La campaña actual no cambió.', true); return; }
+        accion('/api/importar', datos);
+      };
+      lector.readAsText(archivo);
+      entrada.value = '';
+    }
+
+    // ---------- Crear legión ----------
+
+    // Deja el formulario vacío, o con los datos de una legión que se está corrigiendo.
+    function prepararFormularioLegion(anterior = null) {
+      document.getElementById('f-nombre').value = anterior ? anterior.nombre : '';
+      document.getElementById('f-legatus').value = anterior ? anterior.legatus.nombre : '';
+      document.getElementById('f-presupuesto').value = anterior ? anterior.presupuesto : '';
+      document.getElementById('f-atk').value = anterior ? anterior.legatus.atk : 0;
+      document.getElementById('f-def').value = anterior ? anterior.legatus.def : 0;
+      const consul = anterior ? anterior.legatus.consul : 0;
+      document.querySelector(`input[name="f-consul"][value="${consul}"]`).checked = true;
+      mostrarCosto();
+    }
+
+    // Vuelve al formulario de la legión (solo antes de contratar) con sus datos ya escritos.
+    async function corregirLegion() {
+      const anterior = estado.legiones[estado.indice_legion];
+      if (await accion('/api/corregir_legion', {})) prepararFormularioLegion(anterior);
+    }
+
+    // %Costo = %ATK + %DEF (solo se muestra; el servidor lo vuelve a calcular).
+    function mostrarCosto() {
+      const atk = Number(document.getElementById('f-atk').value) || 0;
+      const def = Number(document.getElementById('f-def').value) || 0;
+      document.getElementById('f-costo').textContent = (atk + def).toFixed(1).replace('.0', '');
+    }
+
+    function crearLegion() {
+      accion('/api/legion', {
+        nombre: document.getElementById('f-nombre').value,
+        legatus: document.getElementById('f-legatus').value,
+        consul: valorRadio('f-consul'),
+        atk: document.getElementById('f-atk').value,
+        def: document.getElementById('f-def').value,
+        presupuesto: document.getElementById('f-presupuesto').value
+      });
+    }
+
+    // ---------- Contratar ----------
+
+    function dibujarContratacion() {
+      const legion = estado.legiones[estado.indice_legion];
+      document.getElementById('c-nombre').textContent = legion.nombre;
+      document.getElementById('c-presupuesto').textContent = legion.presupuesto;
+      // La unidad que puede atacar más barata (Ingenieros y Esclavos no atacan).
+      const minimo = Math.min(...estado.catalogo.filter(t => estado.tipos_que_atacan.includes(t.clave)).map(t => t.costo));
+      document.getElementById('c-sin-fondos').hidden = legion.presupuesto >= minimo;
+      document.getElementById('c-tabla').innerHTML = estado.catalogo.map(t => `
+        <tr>
+          <td>${t.nombre}</td><td>${t.hp}</td><td>${t.atk}</td><td>${t.def}</td><td>${t.costo}</td>
+          <td class="nota" style="text-align:left">${t.habilidad}</td>
+          <td><input type="number" min="0" step="1" value="0" data-clave="${t.clave}" data-costo="${t.costo}" oninput="calcularContratacion()"></td>
+          <td id="sub-${t.clave}">0</td>
+        </tr>`).join('');
+      calcularContratacion();
+    }
+
+    // Muestra subtotales y saldo antes de confirmar (CA026). El servidor valida de nuevo.
+    function calcularContratacion() {
+      const presupuesto = estado.legiones[estado.indice_legion].presupuesto;
+      let total = 0;
+      document.querySelectorAll('#c-tabla input').forEach(entrada => {
+        const subtotal = (Number(entrada.value) || 0) * Number(entrada.dataset.costo);
+        document.getElementById('sub-' + entrada.dataset.clave).textContent = subtotal;
+        total += subtotal;
+      });
+      const saldo = presupuesto - total;
+      document.getElementById('c-total').textContent = total;
+      const campoSaldo = document.getElementById('c-saldo');
+      campoSaldo.textContent = saldo < 0 ? `faltan ${-saldo} denarios` : saldo;
+      campoSaldo.className = saldo < 0 ? 'error' : 'dato';
+    }
+
+    function contratar() {
+      const cantidades = {};
+      document.querySelectorAll('#c-tabla input').forEach(e => { cantidades[e.dataset.clave] = e.value; });
+      accion('/api/contratar', { indice: estado.indice_legion, cantidades });
+    }
+
+    // ---------- Preparar ----------
+
+    function dibujarPreparacion() {
+      document.getElementById('p-atacante').innerHTML = estado.legiones.map((l, i) =>
+        `<label><input type="radio" name="p-atacante" value="${i}" ${i === 0 ? 'checked' : ''}> ${esc(l.nombre)}</label>`
+      ).join('');
+      const j = estado.jerarquia;
+      document.getElementById('p-jerarquia').innerHTML = `<p class="dato">${esc(j.senado)}</p>` +
+        j.consules.map(c => `<p>↳ ${c.nombre}: ` +
+          (c.legatus.length ? c.legatus.map(g => `${esc(g.nombre)} (${esc(g.legion)})`).join(', ') : '<span class="nota">sin Legatus</span>') +
+          '</p>').join('');
+    }
+
+    function iniciarCombate() {
+      accion('/api/iniciar', {
+        atacante: valorRadio('p-atacante'),
+        modo: valorRadio('p-modo')
+      });
+    }
+
+    // ---------- Batalla ----------
+
+    function tablaLegion(legion, indice) {
+      const filas = legion.tipos.map(t =>
+        `<tr><td>${t.nombre}</td><td>${t.vivos}</td><td>${t.hp}</td><td>${t.atk}</td><td>${t.def}</td></tr>`).join('');
+      return `
+        <h2>${esc(legion.nombre)}</h2>
+        <p class="nota">Legatus ${esc(legion.legatus.nombre)} · %ATK ${legion.legatus.atk} · %DEF ${legion.legatus.def} · %Costo ${legion.legatus.costo}</p>
+        <p>Estrategia: <span class="dato">${legion.estrategia}</span> · Presupuesto: <span class="dato">${legion.presupuesto}</span></p>
+        <div class="barra" title="Salud"><div style="width:${legion.salud.porcentaje}%"></div></div>
+        <p class="nota">Salud ${legion.salud.actual} / ${legion.salud.maximo} HP (${legion.salud.porcentaje} %)</p>
+        <table>
+          <thead><tr><th>Unidad</th><th>Vivos</th><th>HP</th><th>ATK</th><th>DEF</th></tr></thead>
+          <tbody>${filas}</tbody>
+          <tfoot><tr><th>Total</th><th>${legion.vivos}</th><th></th><th>${legion.ataque_total}</th><th>${legion.defensa_total}</th></tr></tfoot>
+        </table>
+        <p>Mantenimiento estimado: <span class="dato">${legion.mantenimiento}</span> denarios</p>`;
+    }
+
+    function dibujarBatalla() {
+      const combate = estado.combate;
+      estado.legiones.forEach((l, i) => { document.getElementById('legion-' + i).innerHTML = tablaLegion(l, i); });
+
+      const enCurso = estado.fase === 'batalla';
+      document.getElementById('b-turno').textContent = `Turno ${combate.turno} · Etapa ${combate.etapa_siguiente}`;
+      document.getElementById('b-siguiente').textContent = enCurso
+        ? `Ataca: ${estado.legiones[combate.atacante_siguiente].nombre}` : '';
+      document.getElementById('b-avanzar').disabled = !enCurso;
+      document.querySelectorAll('input[name="b-modo"]').forEach(r => {
+        r.checked = r.value === combate.modo;
+        r.disabled = estado.fase === 'finalizado';
+      });
+
+      const u = combate.ultima_etapa;
+      document.getElementById('b-ultima').innerHTML = u ? `
+        <p>Última etapa (T${u.turno}·E${u.numero_etapa}):<br>
+        ${esc(estado.legiones[u.indice_atacante].nombre)} atacó con ATK ${u.ataque_total.toFixed(1)}
+        contra DEF ${u.defensa_total.toFixed(1)}.<br>
+        Daño global: <span class="dato">${u.danio_global}</span> · Bajas: <span class="dato">${u.cantidad_bajas}</span></p>` : '';
+
+      document.getElementById('reagrupacion').hidden = estado.fase !== 'reagrupacion';
+      if (estado.fase === 'reagrupacion') dibujarReagrupacion();
+      else document.getElementById('r-legiones').dataset.clave = '';
+      document.getElementById('final').hidden = estado.fase !== 'finalizado';
+
+      const bitacora = document.getElementById('bitacora');
+      bitacora.innerHTML = estado.bitacora.map(e => `<div class="${e.tipo}">${esc(e.texto)}</div>`).join('');
+      bitacora.scrollTop = bitacora.scrollHeight;
+    }
+
+    function avanzarEtapa() { accion('/api/etapa', {}); }
+
+    function cambiarModo(modo) { accion('/api/modo', { modo }); }
+
+    // En automático se ejecuta una etapa cada 1,2 s; se detiene en reagrupación y al final.
+    function programarAutomatico() {
+      detenerAutomatico();
+      if (estado.fase === 'batalla' && estado.combate.modo === 'automatico') {
+        temporizadorAuto = setTimeout(avanzarEtapa, 1200);
+      }
+    }
+
+    function detenerAutomatico() {
+      clearTimeout(temporizadorAuto);
+      temporizadorAuto = null;
+    }
+
+    // ---------- Resultado final ----------
+
+    function dibujarResultado() {
+      const combate = estado.combate;
+      const ganador = combate.indice_ganador;   // 0 o 1; null = empate
+      document.getElementById('r-titulo').textContent = ganador === null
+        ? 'Empate' : `¡Victoria de ${estado.legiones[ganador].nombre}!`;
+      // El motivo es el texto del modelo sin el comienzo "Vence <nombre>. " o "Empate. ".
+      const inicio = ganador === null ? 'Empate. ' : `Vence ${estado.legiones[ganador].nombre}. `;
+      document.getElementById('r-motivo').textContent = combate.resultado.startsWith(inicio)
+        ? combate.resultado.slice(inicio.length) : combate.resultado;
+      document.getElementById('r-resumen').textContent =
+        `Turnos jugados: ${combate.turnos_jugados}`;
+
+      // Balance de cada legión: tropas contratadas, sobrevivientes y bajas por tipo.
+      document.getElementById('r-balance').innerHTML = estado.legiones.map((legion, i) => {
+        const filas = legion.tipos.map(t =>
+          `<tr><td>${t.nombre}</td><td>${t.contratados}</td><td>${t.vivos}</td><td>${t.contratados - t.vivos}</td></tr>`).join('');
+        const etiqueta = ganador === null ? 'Empate' : (ganador === i ? 'Vencedora' : 'Derrotada');
+        return `
+          <div class="panel ${ganador === i ? 'ganadora' : ''}">
+            <p class="nota">${etiqueta}</p>
+            <h2>${esc(legion.nombre)}</h2>
+            <p class="nota">Legatus ${esc(legion.legatus.nombre)} · Estrategia final: ${legion.estrategia}</p>
+            <div class="barra" title="Salud"><div style="width:${legion.salud.porcentaje}%"></div></div>
+            <p class="nota">Salud restante ${legion.salud.actual} / ${legion.salud.maximo} HP (${legion.salud.porcentaje} %)</p>
+            <table>
+              <thead><tr><th>Unidad</th><th>Contratados</th><th>Sobrevivientes</th><th>Bajas</th></tr></thead>
+              <tbody>${filas}</tbody>
+              <tfoot><tr><th>Total</th><th>${legion.contratados}</th><th>${legion.vivos}</th><th>${legion.contratados - legion.vivos}</th></tr></tfoot>
+            </table>
+            <p>Presupuesto restante: <span class="dato">${legion.presupuesto}</span> denarios</p>
+          </div>`;
+      }).join('');
+    }
+
+    // ---------- Reagrupación ----------
+
+    function dibujarReagrupacion() {
+      const sinDanio = estado.combate.turnos_sin_danio;
+      const avisoEstancamiento = document.getElementById('r-estancamiento');
+      avisoEstancamiento.hidden = sinDanio === 0;
+      avisoEstancamiento.textContent = `Llevan ${sinDanio} turno(s) seguidos sin causarse daño. ` +
+        `Si llegan a ${estado.limites.turnos_sin_danio}, el combate termina en empate. ` +
+        'Convierta esclavos o cambie de estrategia para romper el empate.';
+
+      const contenedor = document.getElementById('r-legiones');
+      // Si ya está dibujada para esta misma reagrupación, no se borra lo que el usuario escribió.
+      const clave = estado.campania.id + '|' + estado.combate.turno + '|' + estado.legiones.map(l => l.nombre).join('|');
+      if (contenedor.dataset.clave === clave) return;
+      contenedor.dataset.clave = clave;
+      // El panel aparece bajo las tablas; en pantallas bajas quedaría fuera de la vista.
+      const sinAnimacion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      requestAnimationFrame(() => document.getElementById('reagrupacion')
+        .scrollIntoView({ behavior: sinAnimacion ? 'auto' : 'smooth', block: 'start' }));
+      const precio = c => estado.catalogo.find(t => t.clave === c).costo;
+      contenedor.innerHTML = estado.legiones.map((l, i) => {
+        const vivos = c => l.tipos.find(t => t.clave === c).vivos;
+        const esclavos = vivos('Esclavo');
+        // Se propone la estrategia actual solo si sigue siendo válida; si no, Triplex Acies (siempre válida).
+        const valida = (vivos('Caballeria') > 0 || l.estrategia !== 'Cuneus') && (vivos('Legionario') > 0 || l.estrategia !== 'Orbis');
+        const propuesta = valida ? l.estrategia : 'Triplex Acies';
+        const opciones = estado.estrategias.map(e =>
+          `<option value="${e.nombre}" ${e.nombre === propuesta ? 'selected' : ''}>${e.nombre} — ${e.condicion}</option>`).join('');
+        return `<div>
+          <h3>${esc(l.nombre)}</h3>
+          <p class="nota">Esclavos vivos: ${esclavos} · Saldo: ${l.presupuesto} denarios</p>
+          <label>Esclavos a Legionarios (${precio('Legionario')} c/u)</label><input type="number" min="0" step="1" value="0" id="r-leg-${i}">
+          <label>Esclavos a Caballería (${precio('Caballeria')} c/u)</label><input type="number" min="0" step="1" value="0" id="r-cab-${i}">
+          <label>Estrategia del próximo turno</label><select id="r-est-${i}">${opciones}</select>
+        </div>`;
+      }).join('');
+    }
+
+    function confirmarReagrupacion() {
+      const decisiones = [0, 1].map(i => ({
+        legionarios: document.getElementById('r-leg-' + i).value,
+        caballeria: document.getElementById('r-cab-' + i).value,
+        estrategia: document.getElementById('r-est-' + i).value
+      }));
+      accion('/api/reagrupar', { decisiones });
+    }
+
+    // ---------- Arranque ----------
+    (async () => {
+      estado = await llamar('/api/estado');
+      mostrar('inicio');
+    })();
+  </script>
+</body>
+</html>
